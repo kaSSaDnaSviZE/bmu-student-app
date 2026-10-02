@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bmu
+          POSTGRES_PASSWORD: bmu
+          POSTGRES_DB: bmu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bmu -d bmu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://bmu:bmu@localhost:5432/bmu?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-should-be-32-characters-min
+      JWT_ACCESS_TTL: 900
+      JWT_REFRESH_TTL_DAYS: 14
+      BMU_DATA_PROVIDER: mock
+      CORS_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate --schema prisma/schema.prisma
+      - name: Apply migrations
+        run: npx prisma migrate deploy --schema prisma/schema.prisma
+      - name: Seed demo data
+        run: npx prisma db seed
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  mobile:
+    name: Flutter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Flutter packages
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+      - name: Test
+        working-directory: apps/mobile
+        run: flutter test
