@@ -21,8 +21,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
       code = statusToCode(status);
       message = messageFromHttpException(exception);
-    } else if (exception instanceof Error && !isProd) {
-      message = exception.message || message;
+    } else if (!isProd && exception instanceof Error && exception.message) {
+      message = exception.message;
     }
 
     if (isProd && status >= 500) {

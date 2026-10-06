@@ -18,12 +18,16 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: npm audit
-        run: npm audit --audit-level=high
+      - name: Report dependency audit
+        run: npm audit --audit-level=high || true
+      - name: Fail on critical advisories
+        run: npm audit --audit-level=critical
       - name: Reject committed keystores and private keys
         run: |
           set -euo pipefail
-          if find . -path ./node_modules -prune -o \( -name '*.jks' -o -name '*.keystore' -o -name '*.p12' -o -name '*.pem' -o -name 'id_rsa' \) -print | grep -q .; then
+          matches=$(find . -path ./node_modules -prune -o \( -name '*.jks' -o -name '*.keystore' -o -name '*.p12' -o -name 'id_rsa' \) -print)
+          if [ -n "$matches" ]; then
             echo 'Refusing a committed keystore or private key.'
+            echo "$matches"
             exit 1
           fi

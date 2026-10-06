@@ -35,7 +35,10 @@ class SessionController extends ChangeNotifier {
         }
       }
       final storedLang = await store.readLang();
-      if (storedLang == 'en' || storedLang == 'az' || storedLang == 'ru') lang = storedLang;
+      if (storedLang != null &&
+          (storedLang == 'en' || storedLang == 'az' || storedLang == 'ru')) {
+        lang = storedLang;
+      }
       themeMode = switch (await store.readTheme()) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
