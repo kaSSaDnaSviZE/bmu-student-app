@@ -135,8 +135,12 @@ model User {
   firstName    String
   lastName     String
   locale       String   @default("en")
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  isActive            Boolean   @default(true)
+  /// Optional extra staff classification such as REGISTRAR, LIBRARIAN, or DORM_STAFF.
+  /// The Role enum stays STUDENT | TEACHER | ADMIN so existing migrations and JWTs do not change.
+  staffRole           String?
+  deletionRequestedAt DateTime?
+  createdAt           DateTime  @default(now())
   updatedAt    DateTime @updatedAt
 
   student            Student?
@@ -145,7 +149,12 @@ model User {
   notifications      Notification[]
   supportRequests    SupportRequest[]
   eventRegistrations EventRegistration[]
-  clubMemberships    ClubMembership[]
+  clubMemberships          ClubMembership[]
+  auditLogs                AuditLog[]
+  deviceTokens             DeviceToken[]
+  notificationPreference   NotificationPreference?
+  storedObjects            StoredObject[]
+  supportMessages          SupportMessage[]
 
   @@index([role])
 }
@@ -172,7 +181,8 @@ model Faculty {
   nameRu      String
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  departments Department[]
+  departments   Department[]
+  announcements Announcement[]
 }
 
 model Department {
@@ -185,8 +195,9 @@ model Department {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   faculty   Faculty   @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  programs  Program[]
-  teachers  Teacher[]
+  programs      Program[]
+  teachers      Teacher[]
+  announcements Announcement[]
 
   @@index([facultyId])
 }
@@ -217,9 +228,10 @@ model Group {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   program   Program         @relation(fields: [programId], references: [id], onDelete: Cascade)
-  students  Student[]
-  courses   Course[]
-  schedules ClassSchedule[]
+  students       Student[]
+  courses        Course[]
+  schedules      ClassSchedule[]
+  courseOfferings CourseOffering[]
 
   @@index([programId])
 }
@@ -235,8 +247,9 @@ model Teacher {
   updatedAt      DateTime        @updatedAt
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   department     Department      @relation(fields: [departmentId], references: [id])
-  courses        Course[]
-  substitutions  ClassSchedule[] @relation("SubstituteTeacher")
+  courses         Course[]
+  substitutions   ClassSchedule[] @relation("SubstituteTeacher")
+  courseOfferings CourseOffering[]
 
   @@index([departmentId])
 }
@@ -259,8 +272,11 @@ model Student {
   enrollments    Enrollment[]
   grades         Grade[]
   attendance     Attendance[]
-  submissions    AssignmentSubmission[]
-  studentIdCard  StudentID?
+  submissions        AssignmentSubmission[]
+  studentIdCard      StudentID?
+  libraryLoans       LibraryLoan[]
+  libraryReservations LibraryReservation[]
+  dormApplications   DormApplication[]
 
   @@index([programId])
   @@index([groupId])
@@ -322,8 +338,10 @@ model Course {
   materials     CourseMaterial[]
   assignments   Assignment[]
   assessments   Assessment[]
-  announcements Announcement[]
-  attendance    Attendance[]
+  announcements   Announcement[]
+  attendance      Attendance[]
+  offerings       CourseOffering[]
+  attendancePolicy AttendancePolicy?
 
   @@index([teacherId])
   @@index([groupId])
@@ -427,8 +445,9 @@ model Assignment {
   title       String
   description String
   deadline    DateTime
-  maxScore    Float                  @default(100)
-  createdAt   DateTime               @default(now())
+  maxScore      Float                  @default(100)
+  allowResubmit Boolean                @default(true)
+  createdAt     DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
   course      Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions AssignmentSubmission[]
@@ -445,13 +464,16 @@ model AssignmentSubmission {
   submittedAt  DateTime?
   body         String?
   score        Float?
+  objectId     String?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   assignment   Assignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  object       StoredObject?    @relation(fields: [objectId], references: [id], onDelete: SetNull)
 
   @@unique([assignmentId, studentId])
   @@index([studentId])
+  @@index([objectId])
 }
 
 model CourseMaterial {
@@ -472,14 +494,23 @@ model Announcement {
   title       String
   body        String
   audience    AnnouncementAudience
-  courseId    String?
-  publishedAt DateTime             @default(now())
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  course      Course?              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId     String?
+  publishedAt  DateTime             @default(now())
+  expiresAt    DateTime?
+  facultyId    String?
+  departmentId String?
+  scheduledFor DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  course       Course?              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  faculty      Faculty?             @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  department   Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   @@index([publishedAt])
   @@index([courseId])
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([expiresAt])
 }
 
 model Notification {
@@ -584,6 +615,8 @@ model LibraryBook {
   available Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  loans     LibraryLoan[]
+  reservations LibraryReservation[]
 }
 
 model Dormitory {
@@ -621,6 +654,7 @@ model SupportRequest {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  SupportMessage[]
 
   @@index([userId])
   @@index([status])
@@ -637,4 +671,378 @@ model StudentID {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Release-candidate models. Additive only. Course remains the legacy section
+// record (teacherId, groupId, semester string, unique code).
+// AttendancePolicy is a configurable app setting, not a university rule.
+// StudentServiceInfo is a public directory. It stores no medical records.
+// ---------------------------------------------------------------------------
+
+enum SemesterTerm {
+  FALL
+  SPRING
+  SUMMER
+}
+
+enum LibraryLoanStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+  LOST
+}
+
+enum LibraryReservationStatus {
+  PENDING
+  READY
+  CANCELLED
+  FULFILLED
+  EXPIRED
+}
+
+enum DormApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum StudentServiceKind {
+  MEDICAL
+  PSYCHOLOGICAL
+  CAREER
+  SPORTS
+}
+
+model AcademicYear {
+  id        String     @id @default(cuid())
+  label     String     @unique
+  startsOn  DateTime   @db.Date
+  endsOn    DateTime   @db.Date
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  semesters Semester[]
+}
+
+model Semester {
+  id             String           @id @default(cuid())
+  academicYearId String
+  term           SemesterTerm
+  code           String           @unique
+  startsOn       DateTime         @db.Date
+  endsOn         DateTime         @db.Date
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  offerings      CourseOffering[]
+
+  @@unique([academicYearId, term])
+  @@index([academicYearId])
+}
+
+/// Reusable course identity. A catalog row is not a section and has no teacher.
+model CourseCatalog {
+  id            String           @id @default(cuid())
+  code          String           @unique
+  titleEn       String
+  titleAz       String
+  titleRu       String
+  credits       Int
+  descriptionEn String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  offerings     CourseOffering[]
+}
+
+/// One taught section of a catalog course. legacyCourseId points at the
+/// existing Course row when this section was seeded from the MVP table.
+model CourseOffering {
+  id             String        @id @default(cuid())
+  semesterId     String
+  catalogId      String
+  sectionCode    String
+  teacherId      String
+  groupId        String
+  legacyCourseId String?       @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  semester       Semester      @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  catalog        CourseCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  teacher        Teacher       @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  group          Group         @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  legacyCourse   Course?       @relation(fields: [legacyCourseId], references: [id], onDelete: SetNull)
+
+  @@unique([semesterId, catalogId, sectionCode])
+  @@index([teacherId])
+  @@index([groupId])
+  @@index([semesterId])
+  @@index([catalogId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
+
+model DeviceToken {
+  id        String         @id @default(cuid())
+  userId    String
+  token     String         @unique
+  platform  DevicePlatform
+  revokedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  schedule     Boolean  @default(true)
+  grade        Boolean  @default(true)
+  assignment   Boolean  @default(true)
+  announcement Boolean  @default(true)
+  event        Boolean  @default(true)
+  support      Boolean  @default(true)
+  system       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Metadata only. File bytes live in object storage, never in this row.
+model StoredObject {
+  id          String                 @id @default(cuid())
+  ownerId     String?
+  purpose     String
+  bucket      String
+  objectKey   String                 @unique
+  mime        String
+  size        Int
+  checksum    String?
+  createdAt   DateTime               @default(now())
+  owner       User?                  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  submissions AssignmentSubmission[]
+
+  @@index([ownerId])
+  @@index([purpose])
+}
+
+model LibraryLoan {
+  id        String            @id @default(cuid())
+  studentId String
+  bookId    String
+  status    LibraryLoanStatus @default(ACTIVE)
+  dueAt     DateTime?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  student   Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  book      LibraryBook       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([bookId])
+  @@index([status])
+}
+
+model LibraryReservation {
+  id        String                   @id @default(cuid())
+  studentId String
+  bookId    String
+  status    LibraryReservationStatus @default(PENDING)
+  dueAt     DateTime?
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  student   Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  book      LibraryBook              @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([bookId])
+}
+
+model DormApplication {
+  id        String                @id @default(cuid())
+  studentId String
+  status    DormApplicationStatus @default(DRAFT)
+  note      String?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  student   Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model DiningVenue {
+  id        String    @id @default(cuid())
+  nameEn    String
+  nameAz    String
+  nameRu    String
+  location  String?
+  demo      Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  days      MenuDay[]
+}
+
+model MenuDay {
+  id        String     @id @default(cuid())
+  venueId   String
+  date      DateTime   @db.Date
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  venue     DiningVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  items     MenuItem[]
+
+  @@unique([venueId, date])
+  @@index([venueId])
+}
+
+model MenuItem {
+  id         String   @id @default(cuid())
+  menuDayId  String
+  nameEn     String
+  nameAz     String
+  nameRu     String
+  priceMinor Int?
+  currency   String   @default("AZN")
+  demo       Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  menuDay    MenuDay  @relation(fields: [menuDayId], references: [id], onDelete: Cascade)
+
+  @@index([menuDayId])
+}
+
+model CareerOpportunity {
+  id            String    @id @default(cuid())
+  titleEn       String
+  titleAz       String
+  titleRu       String
+  organization  String
+  descriptionEn String
+  deadline      DateTime?
+  demo          Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model CareerEvent {
+  id            String    @id @default(cuid())
+  titleEn       String
+  titleAz       String
+  titleRu       String
+  location      String
+  startsAt      DateTime
+  endsAt        DateTime?
+  descriptionEn String?
+  demo          Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([startsAt])
+}
+
+model CareerResource {
+  id        String   @id @default(cuid())
+  titleEn   String
+  titleAz   String
+  titleRu   String
+  url       String?
+  notes     String?
+  demo      Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SupportMessage {
+  id        String         @id @default(cuid())
+  requestId String
+  authorId  String
+  body      String
+  internal  Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  request   SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([authorId])
+}
+
+/// Configurable attendance threshold for the app. Not an official BMU regulation.
+model AttendancePolicy {
+  id           String   @id @default(cuid())
+  courseId     String?  @unique
+  minPercent   Int
+  lateCountsAs Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  course       Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model FeatureFlag {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  enabled   Boolean  @default(false)
+  audience  String   @default("all")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SyncLog {
+  id         String     @id @default(cuid())
+  source     String
+  status     SyncStatus
+  message    String?
+  startedAt  DateTime
+  finishedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([source, startedAt])
+}
+
+/// Campus service directory (hours and location). No diagnoses, notes about
+/// a person, or medical records.
+model StudentServiceInfo {
+  id        String             @id @default(cuid())
+  kind      StudentServiceKind
+  nameEn    String
+  nameAz    String
+  nameRu    String
+  hours     String
+  location  String
+  phone     String?
+  notes     String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([kind])
 }

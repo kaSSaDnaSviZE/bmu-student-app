@@ -4,11 +4,16 @@ import {
   AttendanceStatus,
   BuildingKind,
   ClassStatus,
+  DormApplicationStatus,
+  LibraryLoanStatus,
   MaterialType,
   NotificationType,
   PrismaClient,
   Role,
+  SemesterTerm,
+  StudentServiceKind,
   SubmissionStatus,
+  SyncStatus,
   Weekday,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -59,6 +64,7 @@ function endOfBakuDay(year: number, month: number, day: number) {
 }
 
 async function wipe() {
+  await prisma.supportMessage.deleteMany();
   await prisma.eventRegistration.deleteMany();
   await prisma.clubMembership.deleteMany();
   await prisma.universityEvent.deleteMany();
@@ -66,6 +72,7 @@ async function wipe() {
   await prisma.notification.deleteMany();
   await prisma.announcement.deleteMany();
   await prisma.assignmentSubmission.deleteMany();
+  await prisma.storedObject.deleteMany();
   await prisma.assignment.deleteMany();
   await prisma.courseMaterial.deleteMany();
   await prisma.attendance.deleteMany();
@@ -73,18 +80,38 @@ async function wipe() {
   await prisma.assessment.deleteMany();
   await prisma.classSchedule.deleteMany();
   await prisma.enrollment.deleteMany();
+  await prisma.courseOffering.deleteMany();
+  await prisma.attendancePolicy.deleteMany();
   await prisma.course.deleteMany();
+  await prisma.courseCatalog.deleteMany();
   await prisma.studentID.deleteMany();
   await prisma.supportRequest.deleteMany();
   await prisma.refreshToken.deleteMany();
+  await prisma.deviceToken.deleteMany();
+  await prisma.notificationPreference.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.libraryLoan.deleteMany();
+  await prisma.libraryReservation.deleteMany();
+  await prisma.dormApplication.deleteMany();
   await prisma.student.deleteMany();
   await prisma.teacher.deleteMany();
+  await prisma.menuItem.deleteMany();
+  await prisma.menuDay.deleteMany();
+  await prisma.diningVenue.deleteMany();
   await prisma.dormitoryRoom.deleteMany();
   await prisma.dormitory.deleteMany();
   await prisma.libraryBook.deleteMany();
   await prisma.classroom.deleteMany();
   await prisma.building.deleteMany();
   await prisma.academicEvent.deleteMany();
+  await prisma.semester.deleteMany();
+  await prisma.academicYear.deleteMany();
+  await prisma.careerOpportunity.deleteMany();
+  await prisma.careerEvent.deleteMany();
+  await prisma.careerResource.deleteMany();
+  await prisma.featureFlag.deleteMany();
+  await prisma.syncLog.deleteMany();
+  await prisma.studentServiceInfo.deleteMany();
   await prisma.group.deleteMany();
   await prisma.program.deleteMany();
   await prisma.department.deleteMany();
@@ -217,6 +244,7 @@ async function main() {
       role: Role.ADMIN,
       firstName: 'Admin',
       lastName: 'Demo',
+      staffRole: 'REGISTRAR',
     },
   });
 
@@ -683,6 +711,233 @@ async function main() {
       subject: 'Question about midterm seating',
       message: 'Could you confirm which room the midterm uses? This is a demo request.',
       status: 'OPEN',
+      messages: {
+        create: {
+          authorId: students[1].userId,
+          body: 'Demo follow-up. This message is fictional.',
+          internal: false,
+        },
+      },
+    },
+  });
+
+  const academicYear = await prisma.academicYear.create({
+    data: {
+      label: '2026-2027',
+      startsOn: new Date('2026-09-15T00:00:00.000Z'),
+      endsOn: new Date('2027-06-30T00:00:00.000Z'),
+    },
+  });
+  const fall = await prisma.semester.create({
+    data: {
+      academicYearId: academicYear.id,
+      term: SemesterTerm.FALL,
+      code: '2026-FALL',
+      startsOn: new Date('2026-09-15T00:00:00.000Z'),
+      endsOn: new Date('2027-01-23T00:00:00.000Z'),
+    },
+  });
+
+  const catalogRows = await Promise.all(
+    [
+      courseByCode.CS201,
+      courseByCode.PHY110,
+    ].map((course) =>
+      prisma.courseCatalog.create({
+        data: {
+          code: course.code,
+          titleEn: course.titleEn,
+          titleAz: course.titleAz,
+          titleRu: course.titleRu,
+          credits: course.credits,
+          descriptionEn: 'Fictional catalog row for the demo dataset.',
+        },
+      }),
+    ),
+  );
+  await prisma.courseOffering.create({
+    data: {
+      semesterId: fall.id,
+      catalogId: catalogRows[0].id,
+      sectionCode: 'A',
+      teacherId: teacher.leyla,
+      groupId: groupId['CE-2201'],
+      legacyCourseId: courseByCode.CS201.id,
+    },
+  });
+  await prisma.courseOffering.create({
+    data: {
+      semesterId: fall.id,
+      catalogId: catalogRows[0].id,
+      sectionCode: 'B',
+      teacherId: teacher.tural,
+      groupId: groupId['CE-2202'],
+    },
+  });
+  await prisma.courseOffering.create({
+    data: {
+      semesterId: fall.id,
+      catalogId: catalogRows[1].id,
+      sectionCode: 'A',
+      teacherId: teacher.kamran,
+      groupId: groupId['CE-2201'],
+      legacyCourseId: courseByCode.PHY110.id,
+    },
+  });
+
+  await prisma.attendancePolicy.create({
+    data: {
+      courseId: courseByCode.PHY110.id,
+      minPercent: 70,
+      lateCountsAs: 1,
+    },
+  });
+
+  await prisma.featureFlag.createMany({
+    data: [
+      { key: 'ai.assistant', enabled: true, audience: 'student' },
+      { key: 'dining.prices.demo', enabled: true, audience: 'all' },
+      { key: 'official.sync', enabled: false, audience: 'none' },
+    ],
+  });
+
+  await prisma.diningVenue.create({
+    data: {
+      nameEn: 'Demo cafeteria',
+      nameAz: 'Demo yeməkxana',
+      nameRu: 'Демо-столовая',
+      location: 'Cafeteria building (demo directory)',
+      demo: true,
+      days: {
+        create: {
+          date: new Date('2026-10-06T00:00:00.000Z'),
+          items: {
+            create: [
+              {
+                nameEn: 'Demo lentil soup',
+                nameAz: 'Demo mərci şorbası',
+                nameRu: 'Демо-чечевичный суп',
+                priceMinor: 150,
+                currency: 'AZN',
+                demo: true,
+              },
+              {
+                nameEn: 'Demo rice plate',
+                nameAz: 'Demo plov',
+                nameRu: 'Демо-плов',
+                priceMinor: 350,
+                currency: 'AZN',
+                demo: true,
+              },
+            ],
+          },
+        },
+      },
+    },
+  });
+
+  await prisma.careerOpportunity.create({
+    data: {
+      titleEn: 'Demo internship: campus software club',
+      titleAz: 'Demo təcrübə: kampus proqram klubu',
+      titleRu: 'Демо-стажировка: кампусный кружок',
+      organization: 'Fictional Demo Labs',
+      descriptionEn: 'Invented listing for the demo app. Not an official BMU vacancy.',
+      deadline: new Date('2026-12-01T00:00:00.000Z'),
+      demo: true,
+    },
+  });
+  await prisma.careerEvent.create({
+    data: {
+      titleEn: 'Demo career conversation',
+      titleAz: 'Demo karyera söhbəti',
+      titleRu: 'Демо-карьерная встреча',
+      location: 'Building A · Room 105 (demo)',
+      startsAt: new Date('2026-10-22T10:00:00.000Z'),
+      endsAt: new Date('2026-10-22T11:00:00.000Z'),
+      descriptionEn: 'Fictional career-center event. Not published by BMU.',
+      demo: true,
+    },
+  });
+  await prisma.careerResource.create({
+    data: {
+      titleEn: 'Demo CV checklist',
+      titleAz: 'Demo CV siyahısı',
+      titleRu: 'Демо-список для резюме',
+      url: 'https://example.com/bmu-demo/cv-checklist',
+      notes: 'Fictional handout.',
+      demo: true,
+    },
+  });
+
+  await prisma.studentServiceInfo.createMany({
+    data: [
+      {
+        kind: StudentServiceKind.MEDICAL,
+        nameEn: 'Demo campus medical room',
+        nameAz: 'Demo tibb otağı',
+        nameRu: 'Демо-медпункт',
+        hours: 'Mon–Fri 09:00–17:00 (demo)',
+        location: 'Administration building, directory only',
+        notes: 'Directory listing only. No medical records are stored.',
+      },
+      {
+        kind: StudentServiceKind.PSYCHOLOGICAL,
+        nameEn: 'Demo counseling hours',
+        nameAz: 'Demo psixoloji məsləhət saatları',
+        nameRu: 'Демо-часы психологической поддержки',
+        hours: 'Tue and Thu 11:00–15:00 (demo)',
+        location: 'Administration building, directory only',
+        notes: 'Directory listing only. No counseling notes are stored.',
+      },
+      {
+        kind: StudentServiceKind.CAREER,
+        nameEn: 'Demo career desk',
+        nameAz: 'Demo karyera masası',
+        nameRu: 'Демо-карьера',
+        hours: 'Mon–Fri 10:00–16:00 (demo)',
+        location: 'Building A lobby (demo)',
+        notes: 'Fictional directory entry.',
+      },
+      {
+        kind: StudentServiceKind.SPORTS,
+        nameEn: 'Demo sports hall desk',
+        nameAz: 'Demo idman zalı',
+        nameRu: 'Демо-спортзал',
+        hours: 'Mon–Sat 08:00–20:00 (demo)',
+        location: 'Gym building (demo)',
+        notes: 'Fictional directory entry.',
+      },
+    ],
+  });
+
+  const programmingBook = await prisma.libraryBook.findFirst({ where: { isbn: '9780000000001' } });
+  if (programmingBook) {
+    await prisma.libraryLoan.create({
+      data: {
+        studentId: demo.id,
+        bookId: programmingBook.id,
+        status: LibraryLoanStatus.ACTIVE,
+        dueAt: new Date('2026-11-01T00:00:00.000Z'),
+      },
+    });
+  }
+
+  await prisma.dormApplication.create({
+    data: {
+      studentId: demo.id,
+      status: DormApplicationStatus.DRAFT,
+      note: 'Fictional demo application. Not sent to a university office.',
+    },
+  });
+
+  await prisma.syncLog.create({
+    data: {
+      source: 'official-bmu',
+      status: SyncStatus.FAILED,
+      message: 'Demo row. Official BMU sync is not configured and was not attempted against a university system.',
+      startedAt: new Date('2026-10-01T00:00:00.000Z'),
+      finishedAt: new Date('2026-10-01T00:00:01.000Z'),
     },
   });
 

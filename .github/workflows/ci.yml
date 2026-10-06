@@ -3,6 +3,12 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      mobile:
+        description: Run the Flutter job
+        type: boolean
+        default: true
 
 jobs:
   api:
@@ -54,6 +60,7 @@ jobs:
 
   mobile:
     name: Flutter
+    if: ${{ github.event_name != 'workflow_call' || inputs.mobile }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

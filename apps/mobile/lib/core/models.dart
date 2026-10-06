@@ -26,6 +26,26 @@ class Session {
       role: user['role'] as String,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'accessToken': accessToken,
+        'refreshToken': refreshToken,
+        'email': email,
+        'firstName': firstName,
+        'lastName': lastName,
+        'role': role,
+      };
+
+  factory Session.fromJson(Map<String, dynamic> json) {
+    return Session(
+      accessToken: json['accessToken'] as String,
+      refreshToken: json['refreshToken'] as String,
+      email: json['email'] as String,
+      firstName: json['firstName'] as String,
+      lastName: json['lastName'] as String,
+      role: json['role'] as String,
+    );
+  }
 }
 
 class ScheduleItem {

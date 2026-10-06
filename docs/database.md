@@ -6,6 +6,10 @@ PostgreSQL via Prisma. The schema lives in [prisma/schema.prisma](../prisma/sche
 
 `User`, `Student`, `Teacher`, `Faculty`, `Department`, `Program`, `Group`, `Course`, `Enrollment`, `ClassSchedule`, `Classroom`, `Building`, `Grade`, `Assessment`, `Attendance`, `Assignment` (with `AssignmentSubmission`), `CourseMaterial`, `Announcement`, `Notification`, `AcademicEvent`, `Club`, `ClubMembership`, `UniversityEvent` (with `EventRegistration`), `LibraryBook`, `Dormitory`, `DormitoryRoom`, `SupportRequest`, `StudentID`, `RefreshToken`.
 
+Release-candidate tables (additive; `Course` is still the legacy section with `teacherId`, `groupId`, `semester`, and a unique `code`): `AcademicYear`, `Semester`, `CourseCatalog`, `CourseOffering` (`legacyCourseId` points at `Course`), `AuditLog`, `DeviceToken`, `NotificationPreference`, `StoredObject` (metadata only), `LibraryLoan`, `LibraryReservation`, `DormApplication`, `DiningVenue`, `MenuDay`, `MenuItem`, `CareerOpportunity`, `CareerEvent`, `CareerResource`, `SupportMessage`, `AttendancePolicy`, `FeatureFlag`, `SyncLog`, `StudentServiceInfo`.
+
+`User.staffRole` is an optional string for titles such as registrar. The `Role` enum remains `STUDENT | TEACHER | ADMIN`. `User.deletionRequestedAt` records a request and does not delete the row. `AttendancePolicy` is an application setting, not a BMU regulation. `StudentServiceInfo` is a directory and stores no medical records. Backups are not configured; see [backup.md](backup.md).
+
 Each model has timestamps. Foreign keys, unique pairs (enrollment, grade, attendance date, submission, club membership, event registration), and lookup indexes are declared on the schema.
 
 ## Schedule exceptions

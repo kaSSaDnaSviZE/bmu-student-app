@@ -1,8 +1,8 @@
 # API
 
-Base URL in development: `http://localhost:3000`. Interactive docs: `/docs`.
+Base URL in development: `http://localhost:3000`. The same routes are available under `/api/v1` (for example `/api/v1/auth/login`). Interactive docs: `/docs`.
 
-Send `Authorization: Bearer <accessToken>` except on login, refresh, and health.
+Send `Authorization: Bearer <accessToken>` except on login, refresh, and health. Errors use `{ code, message, requestId }`. The response includes `x-request-id`.
 
 ## Auth
 
@@ -31,8 +31,8 @@ Send `Authorization: Bearer <accessToken>` except on login, refresh, and health.
 
 ## Courses, campus, life
 
-| Method | Path |
-| --- | --- |
+| Method | Path | Notes |
+| --- | --- | --- |
 | GET | `/courses/:id` |
 | GET | `/courses/:id/materials` |
 | GET | `/courses/:id/assignments` |
@@ -54,6 +54,20 @@ Send `Authorization: Bearer <accessToken>` except on login, refresh, and health.
 | GET | `/support-requests` |
 | POST | `/ai/chat` |
 | GET | `/health` |
+| GET | `/health/live` | Process only. No database |
+| GET | `/health/ready` | `SELECT 1` |
+| GET | `/library/books?q=` | Authenticated directory search |
+| GET | `/library/loans` | Authenticated student, own loans only |
+| GET | `/dormitory` | Buildings and room counts. No roommate names |
+| GET | `/dormitory/applications` | Own applications |
+| POST | `/dormitory/applications` | Own application (`DRAFT` or `SUBMITTED`) |
+| GET | `/career/opportunities` | Authenticated list, demo rows included |
+| GET | `/career/events` | |
+| GET | `/career/resources` | |
+| GET | `/dining/menus` | Prices labeled demo |
+| GET | `/student-services` | Hours and location only |
+| POST | `/notifications/devices` | Register the caller’s device token |
+| DELETE | `/notifications/devices` | Revoke the caller’s device token |
 
 Course routes return 403 when the student is not enrolled, including for unknown ids, so the API does not reveal other students’ courses.
 

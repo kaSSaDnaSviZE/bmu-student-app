@@ -1,8 +1,8 @@
 {
   "name": "bmu-student-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "BMU Student App — demo student platform for Baku Engineering University.",
+  "description": "BMU Student App — unofficial demo student platform. Not an official Baku Engineering University application.",
   "license": "MIT",
   "workspaces": [
     "apps/api"

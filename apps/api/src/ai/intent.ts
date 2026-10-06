@@ -10,42 +10,53 @@ export type AssistantIntent =
   | { type: 'help' };
 
 const REFUSAL =
-  /(drop\s+table|delete\s+from|insert\s+into|update\s+\w+\s+set|select\s+\*|union\s+select|all\s+students|every\s+student|other\s+students?|password|ignore\s+(all\s+)?(previous|prior)\s+instructions|system\s+prompt)/i;
+  /(drop\s+table|delete\s+from|insert\s+into|update\s+\w+\s+set|select\s+\*|union\s+select|all\s+students|every\s+student|other\s+students?|password|ignore\s+(all\s+)?(previous|prior)\s+instructions|system\s+prompt|prompt\s+injection|bütün\s+tələbələr|butun\s+telebeler|все\s+студенты)/i;
 
 export function detectIntent(message: string): AssistantIntent {
   const text = message.trim();
   const q = text.toLowerCase();
-  if (!text || REFUSAL.test(text)) return { type: 'refused' };
+  if (!text || REFUSAL.test(text) || REFUSAL.test(q)) return { type: 'refused' };
 
   if (/next class|next lesson|what('?s| is) next/.test(q)) {
     return { type: 'schedule', scope: 'next' };
   }
-  if (/tomorrow/.test(q)) return { type: 'schedule', scope: 'tomorrow' };
-  if (/this week|week schedule|classes this week/.test(q) && !/deadline|assignment|due/.test(q)) {
+  if (isTomorrow(q)) return { type: 'schedule', scope: 'tomorrow' };
+  if (/this week|week schedule|classes this week/.test(q) && !/deadline|assignment|due|дедлайн/.test(q)) {
     return { type: 'schedule', scope: 'week' };
   }
-  if (/today|schedule|my classes|what class/.test(q) && !/deadline|assignment|due|attendance|grade/.test(q)) {
-    return { type: 'schedule', scope: 'today' };
-  }
-  if (/deadline|assignment|due|homework/.test(q)) return { type: 'deadlines' };
-  if (/attendance|absent|presence/.test(q)) {
+  if (/deadline|assignment|due|homework|дедлайн|tapşırıq|tapshiriq/.test(q)) return { type: 'deadlines' };
+  if (/attendance|absent|presence|davamiyy|iştirak|istirak|посещаем/.test(q)) {
     return { type: 'attendance', courseQuery: extractCourse(q) };
   }
-  if (/grade|score|gpa|mark/.test(q)) return { type: 'grades' };
-  if (/exam/.test(q)) return { type: 'calendar', examsOnly: true };
-  if (/where|room|building|library|cafeteria|gym|dorm|campus|map/.test(q)) {
+  if (/today|schedule|my classes|what class|dərs|ders|расписан|занят/.test(q) && !/deadline|assignment|due|attendance|grade/.test(q)) {
+    return { type: 'schedule', scope: 'today' };
+  }
+  if (/grade|score|gpa|mark|qiymət|qiymet|оценк/.test(q)) return { type: 'grades' };
+  if (/exam|imtahan|экзамен/.test(q)) return { type: 'calendar', examsOnly: true };
+  if (/where|room|building|library|cafeteria|gym|dorm|campus|map|harada|где/.test(q)) {
     return { type: 'location', query: text };
   }
-  if (/calendar|holiday|semester|registration/.test(q)) {
+  if (/calendar|holiday|semester|registration|təqvim|taqvim|календар/.test(q)) {
     return { type: 'calendar', examsOnly: false };
   }
-  if (/course|subject/.test(q)) return { type: 'courses' };
+  if (/course|subject|fənn|fenn|предмет/.test(q)) return { type: 'courses' };
   return { type: 'help' };
+}
+
+function isTomorrow(q: string): boolean {
+  if (/\btomorrow\b/.test(q)) return true;
+  if (/(^|\s)sabah($|\s|[?.!,])/.test(q) && !/(^|\s)bu sabah($|\s)/.test(q)) return true;
+  return /завтра/.test(q) && !/завтрак/.test(q);
 }
 
 function extractCourse(q: string): string | undefined {
   const named = q.match(/\b(programming|mathematics|math|physics|english|algorithms|databases|database|history)\b/i);
-  return named?.[1];
+  if (named?.[1]) return named[1].toLowerCase();
+  if (/fizik|физик/.test(q)) return 'physics';
+  if (/riyaziyyat|математик/.test(q)) return 'math';
+  if (/proqramlaş|proqramlas|программир/.test(q)) return 'programming';
+  if (/ingilis|английск/.test(q)) return 'english';
+  return undefined;
 }
 
 export const ASSISTANT_HELP =

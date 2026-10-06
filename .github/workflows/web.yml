@@ -1,0 +1,28 @@
+name: Web
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/web.yml'
+
+jobs:
+  static:
+    name: Static legal site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required pages
+        run: |
+          set -euo pipefail
+          test -f apps/web/index.html
+          test -f apps/web/privacy.html
+          test -f apps/web/terms.html
+          test -f apps/web/delete-account.html
+          test -f apps/web/support.html
+          test -f apps/web/README.md

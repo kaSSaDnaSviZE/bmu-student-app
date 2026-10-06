@@ -1,0 +1,12 @@
+name: Backend
+
+# Thin alias of the API job in ci.yml. Push and pull_request CI already runs
+# that job; this workflow is the manual entry point for API-only checks.
+on:
+  workflow_dispatch:
+
+jobs:
+  api:
+    uses: ./.github/workflows/ci.yml
+    with:
+      mobile: false

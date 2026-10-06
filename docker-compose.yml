@@ -26,6 +26,10 @@ services:
     environment:
       DATABASE_URL: postgresql://bmu:bmu@postgres:5432/bmu?schema=public
       PORT: 3000
+      # The image defaults to NODE_ENV=production, which refuses BMU_DATA_PROVIDER=mock.
+      # This override is only for the local demo stack. Do not copy it into a real deploy.
+      NODE_ENV: development
+      BMU_DATA_PROVIDER: mock
     depends_on:
       postgres:
         condition: service_healthy
